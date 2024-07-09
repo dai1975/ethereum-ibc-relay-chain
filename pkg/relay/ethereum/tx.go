@@ -47,7 +47,7 @@ func (c *Chain) SendMsgs(msgs []sdk.Msg) ([]core.MsgID, error) {
 	iter := NewCallIter(msgs, skipUpdateClientCommitment)
 	for !iter.End() {
 		from := iter.Cursor()
-		logger := &log.RelayLogger{Logger: logger.With(logAttrMsgIndexFrom, from)}
+		logger := logger.With(logAttrMsgIndexFrom, from)
 		c.ethereumSigner.SetLogger(logger)
 
 		built, err := iter.BuildTx(ctx, c)
@@ -58,14 +58,14 @@ func (c *Chain) SendMsgs(msgs []sdk.Msg) ([]core.MsgID, error) {
 		} else if built == nil {
 			break
 		} else {
-			iter.updateLoggerMessageInfo(logger, from, built.count)
-			logger.Logger = logger.With(logAttrTxHash, built.tx.Hash())
+			logger = iter.updateLoggerMessageInfo(logger, from, built.count)
+			logger = logger.With(logAttrTxHash, built.tx.Hash())
 		}
 
 		if rawTxData, err := built.tx.MarshalBinary(); err != nil {
 			logger.Error("failed to encode tx", err)
 		} else {
-			logger.Logger = logger.With(logAttrRawTxData, hex.EncodeToString(rawTxData))
+			logger = logger.With(logAttrRawTxData, hex.EncodeToString(rawTxData))
 		}
 
 		err = c.client.SendTransaction(ctx, built.tx)
@@ -79,7 +79,7 @@ func (c *Chain) SendMsgs(msgs []sdk.Msg) ([]core.MsgID, error) {
 			logger.Error("failed to get receipt", err)
 			return nil, err
 		} else {
-			logger.Logger = logger.With(
+			logger = logger.With(
 				logAttrBlockHash, receipt.BlockHash,
 				logAttrBlockNumber, receipt.BlockNumber.Uint64(),
 				logAttrTxIndex, receipt.TransactionIndex,
@@ -89,10 +89,10 @@ func (c *Chain) SendMsgs(msgs []sdk.Msg) ([]core.MsgID, error) {
 		if receipt.Status == gethtypes.ReceiptStatusFailed {
 			if revertReason, rawErrorData, err := c.getRevertReasonFromReceipt(ctx, receipt); err != nil {
 				// Raw error data may be available even if revert reason isn't available.
-				logger.Logger = logger.With(logAttrRawErrorData, hex.EncodeToString(rawErrorData))
+				logger = logger.With(logAttrRawErrorData, hex.EncodeToString(rawErrorData))
 				logger.Error("failed to get revert reason", err)
 			} else {
-				logger.Logger = logger.With(
+				logger = logger.With(
 					logAttrRawErrorData, hex.EncodeToString(rawErrorData),
 					logAttrRevertReason, revertReason,
 				)
@@ -444,24 +444,22 @@ func estimateGas(
 	c *Chain,
 	tx *gethtypes.Transaction,
 	doRound bool, // return rounded gas limit when gas limit is over
-	base_logger *log.RelayLogger,
+	logger *log.RelayLogger,
 ) (uint64, error) {
-	logger := &log.RelayLogger{Logger: base_logger.Logger}
-
 	if rawTxData, err := tx.MarshalBinary(); err != nil {
 		logger.Error("failed to encode tx", err)
 	} else {
-		logger.Logger = logger.With(logAttrRawTxData, hex.EncodeToString(rawTxData))
+		logger = logger.With(logAttrRawTxData, hex.EncodeToString(rawTxData))
 	}
 
 	estimatedGas, err := c.client.EstimateGasFromTx(ctx, tx)
 	if err != nil {
 		if revertReason, rawErrorData, err := c.getRevertReasonFromRpcError(err); err != nil {
 			// Raw error data may be available even if revert reason isn't available.
-			logger.Logger = logger.With(logAttrRawErrorData, hex.EncodeToString(rawErrorData))
+			logger = logger.With(logAttrRawErrorData, hex.EncodeToString(rawErrorData))
 			logger.Error("failed to get revert reason", err)
 		} else {
-			logger.Logger = logger.With(
+			logger = logger.With(
 				logAttrRawErrorData, hex.EncodeToString(rawErrorData),
 				logAttrRevertReason, revertReason,
 			)
@@ -523,13 +521,12 @@ func (iter *CallIter) Next(n int) {
 	iter.cursor = min(len(iter.msgs), iter.cursor+n)
 }
 
-func (iter *CallIter) updateLoggerMessageInfo(logger *log.RelayLogger, from int, count int) {
+func (iter *CallIter) updateLoggerMessageInfo(logger *log.RelayLogger, from int, count int) *log.RelayLogger {
 	if from < 0 || count < 0 || len(iter.msgs) <= from || len(iter.msgs) < from+count {
-		logger.Error("invalid parameter", fmt.Errorf("out of index: len(msgs)=%d, from=%d, count=%d", len(iter.msgs), from, count))
-		return
+		panic(fmt.Errorf("out of index: len(msgs)=%d, from=%d, count=%d", len(iter.msgs), from, count))
 	}
 
-	logger.Logger = logger.With(
+	return logger.With(
 		logAttrMsgIndexFrom, from,
 		logAttrMsgCount, count,
 		logAttrMsgType, strings.Join(iter.msgTypeNames[from:from+count], ","),
@@ -555,7 +552,7 @@ func (iter *CallIter) buildSingleTx(ctx context.Context, c *Chain) (*CallIterBui
 	}
 
 	logger := c.GetChainLogger()
-	iter.updateLoggerMessageInfo(logger, iter.Cursor(), 1)
+	logger = iter.updateLoggerMessageInfo(logger, iter.Cursor(), 1)
 
 	opts, err := c.TxOpts(ctx, true)
 	if err != nil {
@@ -607,8 +604,7 @@ func (iter *CallIter) buildMultiTx(ctx context.Context, c *Chain) (*CallIterBuil
 		txs := make([]gethtypes.Transaction, 0, len(iter.msgs))
 
 		for i := 0; i < len(iter.msgs); i++ {
-			logger := &log.RelayLogger{Logger: logger.Logger}
-			iter.updateLoggerMessageInfo(logger, i, 1)
+			logger := iter.updateLoggerMessageInfo(logger, i, 1)
 
 			// note that its nonce is not checked
 			tx, err := c.BuildMessageTx(opts, iter.msgs[i], iter.skipUpdateClientCommitment)
@@ -636,8 +632,7 @@ func (iter *CallIter) buildMultiTx(ctx context.Context, c *Chain) (*CallIterBuil
 			from := iter.Cursor()
 			to := from + count
 
-			logger := &log.RelayLogger{Logger: logger.Logger}
-			iter.updateLoggerMessageInfo(logger, from, count)
+			logger := iter.updateLoggerMessageInfo(logger, from, count)
 
 			calls := make([]multicall3.Multicall3Call, 0, count)
 			for i := from; i < to; i++ {
@@ -662,7 +657,7 @@ func (iter *CallIter) buildMultiTx(ctx context.Context, c *Chain) (*CallIterBuil
 			return nil
 		})
 
-	iter.updateLoggerMessageInfo(logger, iter.Cursor(), count)
+	logger = iter.updateLoggerMessageInfo(logger, iter.Cursor(), count)
 
 	if err != nil {
 		logger.Error("failed to prepare multicall tx", err)
