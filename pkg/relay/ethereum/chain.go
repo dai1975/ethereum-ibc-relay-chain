@@ -18,8 +18,8 @@ import (
 	host "github.com/cosmos/ibc-go/v8/modules/core/24-host"
 	ibcexported "github.com/cosmos/ibc-go/v8/modules/core/exported"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/hyperledger-labs/yui-relayer/core"
 	"github.com/hyperledger-labs/yui-relayer/log"
 	"github.com/hyperledger-labs/yui-relayer/signer"
@@ -485,10 +485,10 @@ func (c *Chain) QueryChannelUpgrade(ctx core.QueryContext) (*chantypes.QueryUpgr
 	}
 }
 
-// QueryChannelUpgradeError iterates through chain events in reverse chronological order from the height of `ctx` and returns the error receipt that matches `upgradeSequence`.
-// If zero is specified as `upgradeSequence`, this function simply returns the error receipt stored at the height of `ctx`.
-func (c *Chain) QueryChannelUpgradeError(ctx core.QueryContext, upgradeSequence uint64) (*chantypes.QueryUpgradeErrorResponse, error) {
-	if ev, err := c.findWriteErrorReceipt(ctx, upgradeSequence); err != nil {
+// QueryChannelUpgradeError returns the channel upgrade error receipt associated with a channelID at the height of `ctx`.
+// WARN: This error receipt may not be used to cancel upgrade in FLUSHCOMPLETE state because of upgrade sequence mismatch.
+func (c *Chain) QueryChannelUpgradeError(ctx core.QueryContext) (*chantypes.QueryUpgradeErrorResponse, error) {
+	if ev, err := c.findWriteErrorReceipt(ctx); err != nil {
 		return nil, err
 	} else if ev == nil {
 		return nil, nil

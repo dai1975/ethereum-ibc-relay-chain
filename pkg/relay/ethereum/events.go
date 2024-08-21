@@ -247,9 +247,9 @@ func (chain *Chain) filterLogs(ctx core.QueryContext, fromHeight uint64, event a
 	return logs, nil
 }
 
-// findWriteErrorReceipt traverses WriteErrorReceipt events in reverse chronological order and returns the one that matches `upgradeSequence`.
+// findWriteErrorReceipt traverses WriteErrorReceipt events in reverse chronological order and returns the latest one.
 // The start point of the traverse is the height of `ctx`.
-func (chain *Chain) findWriteErrorReceipt(ctx core.QueryContext, upgradeSequence uint64) (*ibchandler.IbchandlerWriteErrorReceipt, error) {
+func (chain *Chain) findWriteErrorReceipt(ctx core.QueryContext) (*ibchandler.IbchandlerWriteErrorReceipt, error) {
 	blocks := int64(chain.config.BlocksPerEventQuery)
 	if blocks == 0 {
 		blocks = BlocksPerEventQueryDefault
@@ -271,9 +271,7 @@ func (chain *Chain) findWriteErrorReceipt(ctx core.QueryContext, upgradeSequence
 		var errReceipt *ibchandler.IbchandlerWriteErrorReceipt
 		for iterator.Next() {
 			if iterator.Event.PortId == chain.pathEnd.PortID && iterator.Event.ChannelId == chain.pathEnd.ChannelID {
-				if upgradeSequence == 0 || iterator.Event.UpgradeSequence == upgradeSequence {
-					errReceipt = iterator.Event
-				}
+				errReceipt = iterator.Event
 			}
 		}
 		if err := iterator.Error(); err != nil {
