@@ -1,7 +1,9 @@
 package ethereum
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	clienttypes "github.com/cosmos/ibc-go/v8/modules/core/02-client/types"
 	chantypes "github.com/cosmos/ibc-go/v8/modules/core/04-channel/types"
@@ -9,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/hyperledger-labs/yui-relayer/config"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func ethereumCmd(ctx *config.Context) *cobra.Command {
@@ -65,13 +68,11 @@ func proposeUpgradeCmd(ctx *config.Context) *cobra.Command {
 			}
 
 			// get ordering from flags
-			var ordering uint8
-			if s, err := cmd.Flags().GetString(flagOrdering); err != nil {
+			ordering, err := getOrderFromFlags(cmd.Flags(), flagOrdering)
+			if err != nil {
 				return err
-			} else if n := chantypes.Order_value[s]; n == 0 {
-				return fmt.Errorf("invalid ordering flag: %s", s)
-			} else {
-				ordering = uint8(n)
+			} else if ordering == chantypes.NONE {
+				return errors.New("NONE is unacceptable channel ordering")
 			}
 
 			// get connection hops from flags
@@ -115,7 +116,7 @@ func proposeUpgradeCmd(ctx *config.Context) *cobra.Command {
 				ethChain.pathEnd.PortID,
 				ethChain.pathEnd.ChannelID,
 				iibcchannelupgradablemodule.UpgradeFieldsData{
-					Ordering:       ordering,
+					Ordering:       uint8(ordering),
 					ConnectionHops: connHops,
 					Version:        version,
 				},
@@ -188,4 +189,19 @@ func allowTransitionToFlushCompleteCmd(ctx *config.Context) *cobra.Command {
 	cmd.Flags().Uint64(flagUpgradeSequence, 0, "upgrade sequence")
 
 	return &cmd
+}
+
+func getOrderFromFlags(flags *pflag.FlagSet, flagName string) (chantypes.Order, error) {
+	s, err := flags.GetString(flagName)
+	if err != nil {
+		return 0, err
+	}
+
+	s = "ORDER_" + strings.ToUpper(s)
+	value, ok := chantypes.Order_value[s]
+	if !ok {
+		return 0, fmt.Errorf("invalid channel order specified: %s", s)
+	}
+
+	return chantypes.Order(value), nil
 }
