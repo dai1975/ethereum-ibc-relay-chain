@@ -5,18 +5,21 @@ import (
 	"fmt"
 
 	"github.com/datachainlab/ethereum-ibc-relay-chain/pkg/contract/iibcchannelupgradablemodule"
-	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 func (c *Chain) ProposeUpgrade(
 	ctx context.Context,
-	appAddr common.Address,
 	portID string,
 	channelID string,
 	upgradeFields iibcchannelupgradablemodule.UpgradeFieldsData,
 	timeout iibcchannelupgradablemodule.TimeoutData,
 ) error {
+	appAddr, err := c.ibcHandler.GetIBCModuleByChannel(c.CallOpts(ctx, 0), portID, channelID)
+	if err != nil {
+		return err
+	}
+
 	mockApp, err := iibcchannelupgradablemodule.NewIibcchannelupgradablemodule(
 		appAddr,
 		c.client.Client,
@@ -52,11 +55,15 @@ func (c *Chain) ProposeUpgrade(
 
 func (c *Chain) AllowTransitionToFlushComplete(
 	ctx context.Context,
-	appAddr common.Address,
 	portID string,
 	channelID string,
 	upgradeSequence uint64,
 ) error {
+	appAddr, err := c.ibcHandler.GetIBCModuleByChannel(c.CallOpts(ctx, 0), portID, channelID)
+	if err != nil {
+		return err
+	}
+
 	mockApp, err := iibcchannelupgradablemodule.NewIibcchannelupgradablemodule(
 		appAddr,
 		c.client.Client,

@@ -8,7 +8,6 @@ import (
 	clienttypes "github.com/cosmos/ibc-go/v8/modules/core/02-client/types"
 	chantypes "github.com/cosmos/ibc-go/v8/modules/core/04-channel/types"
 	"github.com/datachainlab/ethereum-ibc-relay-chain/pkg/contract/iibcchannelupgradablemodule"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/hyperledger-labs/yui-relayer/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -43,7 +42,6 @@ func channelUpgradeCmd(ctx *config.Context) *cobra.Command {
 
 func proposeUpgradeCmd(ctx *config.Context) *cobra.Command {
 	const (
-		flagAppAddress       = "app-address"
 		flagOrdering         = "ordering"
 		flagConnectionHops   = "connection-hops"
 		flagVersion          = "version"
@@ -52,20 +50,12 @@ func proposeUpgradeCmd(ctx *config.Context) *cobra.Command {
 	)
 
 	cmd := cobra.Command{
-		Use:     "propose-init",
+		Use:     "propose-upgrade",
 		Aliases: []string{"propose"},
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pathName := args[0]
 			chainID := args[1]
-
-			// get app address from flags
-			var appAddr common.Address
-			if appAddrHex, err := cmd.Flags().GetString(flagAppAddress); err != nil {
-				return err
-			} else {
-				appAddr = common.HexToAddress(appAddrHex)
-			}
 
 			// get ordering from flags
 			ordering, err := getOrderFromFlags(cmd.Flags(), flagOrdering)
@@ -112,7 +102,6 @@ func proposeUpgradeCmd(ctx *config.Context) *cobra.Command {
 
 			return ethChain.ProposeUpgrade(
 				cmd.Context(),
-				appAddr,
 				ethChain.pathEnd.PortID,
 				ethChain.pathEnd.ChannelID,
 				iibcchannelupgradablemodule.UpgradeFieldsData{
@@ -128,7 +117,6 @@ func proposeUpgradeCmd(ctx *config.Context) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().String(flagAppAddress, "", "IBC app module address")
 	cmd.Flags().String(flagOrdering, "", "channel ordering applied for the new channel")
 	cmd.Flags().StringSlice(flagConnectionHops, []string{}, "connection hops applied for the new channel")
 	cmd.Flags().String(flagVersion, "", "channel version applied for the new channel")
@@ -140,7 +128,6 @@ func proposeUpgradeCmd(ctx *config.Context) *cobra.Command {
 
 func allowTransitionToFlushCompleteCmd(ctx *config.Context) *cobra.Command {
 	const (
-		flagAppAddress      = "app-address"
 		flagUpgradeSequence = "upgrade-sequence"
 	)
 
@@ -151,14 +138,6 @@ func allowTransitionToFlushCompleteCmd(ctx *config.Context) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pathName := args[0]
 			chainID := args[1]
-
-			// get app address from flags
-			var appAddr common.Address
-			if appAddrHex, err := cmd.Flags().GetString(flagAppAddress); err != nil {
-				return err
-			} else {
-				appAddr = common.HexToAddress(appAddrHex)
-			}
 
 			// get upgrade sequence from flags
 			upgradeSequence, err := cmd.Flags().GetUint64(flagUpgradeSequence)
@@ -177,7 +156,6 @@ func allowTransitionToFlushCompleteCmd(ctx *config.Context) *cobra.Command {
 
 			return ethChain.AllowTransitionToFlushComplete(
 				cmd.Context(),
-				appAddr,
 				ethChain.pathEnd.PortID,
 				ethChain.pathEnd.ChannelID,
 				upgradeSequence,
@@ -185,7 +163,6 @@ func allowTransitionToFlushCompleteCmd(ctx *config.Context) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().String(flagAppAddress, "", "IBC app module address")
 	cmd.Flags().Uint64(flagUpgradeSequence, 0, "upgrade sequence")
 
 	return &cmd
