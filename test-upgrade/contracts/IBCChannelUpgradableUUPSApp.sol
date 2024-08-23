@@ -22,9 +22,8 @@ contract IBCChannelUpgradableUUPSApp is
   IIBCChannelUpgradableAppModule,
   IIBCChannelUpgradableAppModuleErrors
 {
-    AppInfo internal appInfoCandidate;
-    AppInfo internal appInfo;
-    bool internal appInfoApplied; //default false
+    // NOTE: A module should set an initial appVersion struct in contract constructor or initializer
+    mapping(string appVersion => AppInfo) internal appInfos;
 
     constructor(IIBCHandler ibcHandler_) IBCChannelUpgradableMockApp(ibcHandler_) {}
 
@@ -67,9 +66,9 @@ contract IBCChannelUpgradableUUPSApp is
         UpgradeFields.Data calldata proposedUpgradeFields
     ) public view virtual override onlyIBC returns (string memory version) {
         version = super.onChanUpgradeInit(portId, channelId, upgradeSequence, proposedUpgradeFields);
-        // ERROR: view function
-        //appInfo = appInfoCandidate;
-        //appInfoApplied = false;
+
+        (Channel.Data memory channel, ) = IIBCHandler(ibcHandler).getChannel(portId, channelId);
+        _prepareUpgrade(channel.version, version);
     }
 
     /**
@@ -82,9 +81,9 @@ contract IBCChannelUpgradableUUPSApp is
         UpgradeFields.Data calldata proposedUpgradeFields
     ) public view virtual override onlyIBC returns (string memory version) {
         version = super.onChanUpgradeTry(portId, channelId, upgradeSequence, proposedUpgradeFields);
-        // ERROR: view function
-        //appInfo = appInfoCandidate;
-        //appInfoApplied = false;
+
+        (Channel.Data memory channel, ) = IIBCHandler(ibcHandler).getChannel(portId, channelId);
+        _prepareUpgrade(channel.version, version);
     }
 
     /**
@@ -108,35 +107,50 @@ contract IBCChannelUpgradableUUPSApp is
         uint64 upgradeSequence
     ) public virtual override onlyIBC {
         super.onChanUpgradeOpen(portId, channelId, upgradeSequence);
-        _upgradeApp();
+
+        (Channel.Data memory channel, ) = IIBCHandler(ibcHandler).getChannel(portId, channelId);
+        _upgradeApp(channel.version);
     }
 
     // ----------------------------------------------------------
     // IBCChannelUpgradableMockApp
-    function getAppInfoProposal() public view virtual override returns (AppInfo memory) {
-        return appInfo;
+    function getAppInfoProposal(string memory version) public view virtual override returns (AppInfo memory) {
+        return appInfos[version];
     }
 
-    function proposeAppInfo(AppInfo calldata appInfo_) public virtual override onlyOwner {
-        appInfoCandidate = appInfo_;
+    function proposeAppVersion(string memory version, AppInfo calldata appInfo_) public virtual override onlyOwner {
+        require(appInfo_.implementation != address(0), "zero address");
+
+        AppInfo storage appInfo = appInfos[version];
+        require(appInfo.implementation == address(0), "already set");
+
+        appInfos[version] = appInfo_;
     }
 
-    function removeUpgradeProposal() public virtual override onlyOwner {
-        // TODO: delete appInfoCandidate.initialCalldata;
-    }
-
-    function _upgradeApp() internal {
-        if (appInfoApplied || appInfo.implementation == address(0)) {
-            return;
+    function _prepareUpgrade(string memory version, string memory newVersion) internal view {
+        if (! _compareString(version, newVersion)) {
+            AppInfo storage appInfo = appInfos[newVersion];
+            require(appInfo.implementation != address(0));
         }
-
-        if (ERC1967Utils.getImplementation() == appInfo.implementation) {
-            return;
-        }
-
-        ERC1967Utils.upgradeToAndCall(appInfo.implementation, appInfo.initialCalldata);
-
-        appInfoApplied = true;
     }
 
+    function _upgradeApp(string memory newVersion) internal {
+        AppInfo storage appInfo = appInfos[newVersion];
+
+        if (appInfo.implementation != address(0) && !appInfo.consumed) {
+            appInfo.consumed = true;
+            // if there is no implementation update, nothing happens here
+            if (ERC1967Utils.getImplementation() != appInfo.implementation) {
+                ERC1967Utils.upgradeToAndCall(appInfo.implementation, appInfo.initialCalldata);
+            }
+            delete appInfo.initialCalldata;
+        }
+    }
+
+    function _compareString(string memory a, string memory b) private pure returns (bool) {
+        if (bytes(a).length != bytes(b).length) {
+            return false;
+        }
+        return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+    }
 }

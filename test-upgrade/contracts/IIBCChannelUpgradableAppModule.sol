@@ -17,27 +17,22 @@ interface IIBCChannelUpgradableAppModule {
     struct AppInfo {
         address implementation;
         bytes initialCalldata;
+        bool consumed;
     }
 
     // ------------------- Functions ------------------- //
 
     /**
-     * @dev Returns the proposed AppInfo for the given port and channel
+     * @dev Returns the proposed AppInfo for the given version
      */
-    function getAppInfoProposal() external view returns (AppInfo memory);
+    function getAppInfoProposal(string memory version) external returns (AppInfo memory);
 
     /**
      * @dev Propose an Appinfo for the given port and channel
      * @notice This function is only callable by an authorized upgrader
      * The upgrader must call this function before calling `channelUpgradeInit` or `channelUpgradeTry` of the IBC handler
      */
-    function proposeAppInfo(AppInfo calldata appInfo) external;
-
-    /**
-     * @dev Removes the proposed AppInfo for the given port and channel
-     * @notice This function is only callable by an authorized upgrader
-     */
-    function removeUpgradeProposal() external;
+    function proposeAppVersion(string memory version, AppInfo calldata appInfo) external;
 
 }
 
