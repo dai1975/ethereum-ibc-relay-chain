@@ -498,7 +498,6 @@ func (c *Chain) QueryChannelUpgradeError(ctx core.QueryContext) (*chantypes.Quer
 				Sequence: ev.UpgradeSequence,
 				Message:  ev.Message,
 			},
-			ProofHeight: clienttypes.NewHeight(0, ev.Raw.BlockNumber),
 		}, nil
 	}
 }
