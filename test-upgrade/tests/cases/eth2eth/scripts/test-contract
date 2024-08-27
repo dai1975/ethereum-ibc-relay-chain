@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -eux
+
+SCRIPT_DIR=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+FIXTURES_DIR=${SCRIPT_DIR}/../fixtures
+source ${SCRIPT_DIR}/util/relayer-util
+
+APP_ADDRESS_A=`cat ${FIXTURES_DIR}/ethereum/ibc0/addresses/AppV1`
+APP_ADDRESS_B=`cat ${FIXTURES_DIR}/ethereum/ibc1/addresses/AppV1`
+
+
+# run by curl. TODO decode
+# test call upgrade contract
+#RPC=$(cat $RELAYER_CONF | jq '.chains[0].chain.rpc_addr')
+#FUNC_V2_STATE="0x1189267d"
+#curl --data "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"eth_call\",\"params\":[{\"to\":\"$APP_ADDRESS_A\", \"data\":\"$FN_V2_STATE\"}]}"
+#decode string...
+
+# run by hardhat javascript
+cd $SCRIPT_DIR/../../../../contracts
+DEPLOY_NETWORK=geth0 DEPLOY_RPC_URL=http://localhost:8645 V2_ADDRESS=$APP_ADDRESS_A npx hardhat run ./scripts/test-contract.js --network geth0
+DEPLOY_NETWORK=geth1 DEPLOY_RPC_URL=http://localhost:8745 V2_ADDRESS=$APP_ADDRESS_B npx hardhat run ./scripts/test-contract.js --network geth1

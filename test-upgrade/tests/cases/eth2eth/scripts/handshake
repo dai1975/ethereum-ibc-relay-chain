@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -eu
+
+SCRIPT_DIR=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+source ${SCRIPT_DIR}/util/relayer-util
+
+# handshake
+set -x
+$RLY tx clients $PATH_NAME
+$RLY query client $PATH_NAME $CHAINID_ONE 2>/dev/null | jq -Rs 'fromjson'
+$RLY query client $PATH_NAME $CHAINID_TWO 2>/dev/null | jq -Rs 'fromjson'
+
+$RLY tx update-clients $PATH_NAME
+$RLY query client $PATH_NAME $CHAINID_ONE 2>/dev/null | jq -Rs 'fromjson'
+$RLY query client $PATH_NAME $CHAINID_TWO 2>/dev/null | jq -Rs 'fromjson'
+
+$RLY tx connection $PATH_NAME
+$RLY query connection $PATH_NAME $CHAINID_ONE 2>/dev/null | jq -Rs 'fromjson'
+$RLY query connection $PATH_NAME $CHAINID_TWO 2>/dev/null | jq -Rs 'fromjson'
+
+$RLY tx channel $PATH_NAME
+$RLY query channel $PATH_NAME $CHAINID_ONE 2>/dev/null | jq -Rs 'fromjson'
+$RLY query channel $PATH_NAME $CHAINID_TWO 2>/dev/null | jq -Rs 'fromjson'
+set +x

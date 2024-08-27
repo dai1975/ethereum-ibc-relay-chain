@@ -1,0 +1,44 @@
+#!/bin/bash
+
+set -eux
+
+SCRIPT_DIR=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+FIXTURES_DIR=${SCRIPT_DIR}/../fixtures
+source ${SCRIPT_DIR}/util/relayer-util
+
+# back up the original connection identifiers
+srcOrigConnectionId=$($RLY paths list --json | jq --raw-output --arg path_name "$PATH_NAME" '.[$path_name].src."connection-id"')
+dstOrigConnectionId=$($RLY paths list --json | jq --raw-output --arg path_name "$PATH_NAME" '.[$path_name].dst."connection-id"')
+
+# back up the original config.json and make connection identifiers empty
+origconfig=`mktemp`
+cp "$RELAYER_CONF/config/config.json" $origconfig
+$RLY paths edit $PATH_NAME src connection-id ''
+$RLY paths edit $PATH_NAME dst connection-id ''
+
+# create a new connection and save the new connection identifiers
+$RLY tx connection $PATH_NAME
+srcAltConnectionId=$($RLY paths list --json | jq --raw-output --arg path_name "$PATH_NAME" '.[$path_name].src."connection-id"')
+dstAltConnectionId=$($RLY paths list --json | jq --raw-output --arg path_name "$PATH_NAME" '.[$path_name].dst."connection-id"')
+
+# resume the original config.json
+mv $origconfig "$RELAYER_CONF/config/config.json"
+
+# constant variables
+APP_ADDRESS_A=`cat ${FIXTURES_DIR}/ethereum/ibc0/addresses/AppV1`
+APP_ADDRESS_B=`cat ${FIXTURES_DIR}/ethereum/ibc1/addresses/AppV1`
+#TIMEOUT_FLAGS="--timeout-height 0-100000000 --timeout-timestamp `date -d 2030/01/01 +%s`"
+TIMEOUT_FLAGS="--timeout-height 0-100000000"
+
+# test channel upgrade (crossing-hello)
+UPGRADE_FIELDS_FLAGS_A="--ordering Ordered --connection-hops $srcAltConnectionId --version mockapp-2"
+UPGRADE_FIELDS_FLAGS_B="--ordering Ordered --connection-hops $dstAltConnectionId --version mockapp-2"
+$RLY eth upgrade propose ibc01 ibc0 $UPGRADE_FIELDS_FLAGS_A $TIMEOUT_FLAGS
+$RLY tx channel-upgrade init ibc01 ibc0 $UPGRADE_FIELDS_FLAGS_A
+$RLY eth upgrade propose ibc01 ibc1 $UPGRADE_FIELDS_FLAGS_B $TIMEOUT_FLAGS
+$RLY tx channel-upgrade init ibc01 ibc1 $UPGRADE_FIELDS_FLAGS_B
+$RLY tx channel-upgrade execute ibc01 --target-src-state FLUSHING --target-dst-state FLUSHING
+$RLY eth upgrade allow ibc01 ibc0 --upgrade-sequence 1
+$RLY eth upgrade allow ibc01 ibc1 --upgrade-sequence 1
+$RLY tx channel-upgrade execute ibc01
+

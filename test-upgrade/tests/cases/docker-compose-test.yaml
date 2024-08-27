@@ -1,0 +1,32 @@
+networks:
+  relayer-e2e:
+    name: &network-common relayer-e2e
+
+services:
+# Ethereum
+  ethereum-geth0:
+    container_name: ethereum-geth0
+    image: ethereum-geth0:${TAG}
+    hostname: geth0
+    ports:
+      - 8645:8545
+    healthcheck:
+      test: "wget -q -O - http://localhost:8545/health || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - *network-common
+  ethereum-geth1:
+    container_name: ethereum-geth1
+    image: ethereum-geth1:${TAG}
+    hostname: geth1
+    ports:
+      - 8745:8545
+    healthcheck:
+      test: "wget -q -O - http://localhost:8545/health || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - *network-common

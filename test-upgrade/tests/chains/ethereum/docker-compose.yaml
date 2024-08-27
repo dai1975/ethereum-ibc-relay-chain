@@ -1,0 +1,39 @@
+networks:
+  ethereum-scaffold:
+    name: &network-common ethereum-scaffold
+
+services:
+  geth0-scaffold:
+    container_name: ethereum-geth0-scaffold
+    build:
+      context: ./geth
+      args:
+        - CHAIN_ID=2018
+    ports:
+      - 8645:8545
+    networks:
+      - *network-common
+    healthcheck: &healthcheck-geth
+      test: ["CMD", "wget", "--spider", "--post-data", '{"jsonrpc": "2.0", "id": 1, "method": "net_version"}', "http://localhost:8545"]
+      start_period: 3s
+      interval: 1s
+      timeout: 3s
+      retries: 30
+  geth1-scaffold:
+    container_name: ethereum-geth1-scaffold
+    build:
+      context: ./geth
+      args:
+        - CHAIN_ID=2019
+    ports:
+      - 8745:8545
+    networks:
+      - *network-common
+    healthcheck: *healthcheck-geth
+  contracts:
+    image: "node:18"
+    volumes:
+      - "../../../contracts:/workdir"
+    working_dir: "/workdir"
+    networks:
+      - *network-common
